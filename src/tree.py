@@ -11,10 +11,6 @@ from dataclasses import dataclass
 from numpy.random import rand
 from scipy.optimize import minimize
 
-@dataclass
-class Word:
-    form: str
-    features: set
 
 class Tree():
     def __init__(self, label, features, children=None):
@@ -126,8 +122,6 @@ class Tree():
             return self.features
         return self.features.union(*[child.get_all_features for child in self.children])
 
-
-
     @classmethod
     def from_str(cls, string, feature_dict):
         """
@@ -231,7 +225,6 @@ class TSL2_Grammar:
         :param proj_dict: dictionary of probabilities
         may need to be edited with changes to feature representation and projection
         '''
-
         self.functions = functions
         self.proj_dict = proj_dict
 
@@ -240,6 +233,7 @@ class TSL2_Grammar:
 
     def projection_p(self, tree: Tree):
         '''
+        Returns a list of projections of tree and their probabilities
         :param tree: Tree
         :return: List(Tuple(Tree, float)), list of projections and their probabilities
         '''
@@ -254,7 +248,13 @@ class TSL2_Grammar:
         # base case
         if not tree.children:
             prob = tree.get_probs(self.proj_dict)
-            return [(proj, prob) for proj, prob in [([tree], prob), ([], 1-prob)] if prob != 0]
+
+            result = [([], 1-prob)]
+
+            if prob > 0:
+                result.append(([tree], prob))
+            
+            return result
 
         # probability of being projected, function to be tweaked
         prob = tree.get_probs(self.proj_dict)
@@ -345,7 +345,7 @@ class TSL2_Grammar:
         :param proj_dict: Features to project
         :return: Probability tree is grammatical under this instantiation of grammar
         '''
-        return sum([prob for proj, prob in self.projection_p(tree) if self.is_grammatical(proj)])
+        return sum([prob for proj, prob in self.projection_p(tree) if prob > 0 and self.is_grammatical(proj)])
 
     @staticmethod
     def child_product(child_projections):
