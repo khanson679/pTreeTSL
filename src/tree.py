@@ -1,14 +1,15 @@
+import argparse
+import csv
 import pyparsing as pp
 import pandas as pd
 import random
-import csv
-from numpy.random import rand
-from scipy.optimize import minimize
-from collections import defaultdict
-from dataclasses import dataclass
+import scipy
 import warnings
 
-KEY = "response_key.csv"
+from collections import defaultdict
+from dataclasses import dataclass
+from numpy.random import rand
+from scipy.optimize import minimize
 
 @dataclass
 class Word:
@@ -270,11 +271,13 @@ class TSL2_Grammar:
                 new_children.append((children, (1 - prob) * val))
         return new_children
 
-    def evaluate_proj(self, proj_probs, params, corpus_probs, prior, beta):
+    @staticmethod
+    def evaluate_proj(proj_probs, grammar, params, corpus_probs, prior, beta):
         # may be rewritten to use a more motivated method than sse
         '''
         Straightforward adaptation from Connor's pTSL code
         :param proj_probs: Tuple(float) probabilities in tuple equal length(params)
+        :param grammar
         :param params: List(Str) Keys for proj_dict
         :param corpus_probs: Tuple(Tree, float) trees and their acceptability/grammaticality probability
         :param prior: scipy.stats.beta, a prior on the bernoulli RVs
@@ -282,17 +285,20 @@ class TSL2_Grammar:
         :return:
         '''
         for i, param in enumerate(params):
-            self.proj_dict[param] = proj_probs[i]
+            grammar.proj_dict[param] = proj_probs[i]
 
         sse = 0
-        for tree, p in corpus_probs:
-            sse += (self.p_grammatical(tree) - p)**2 - beta*prior.pdf(p)
+        for i, (tree, p) in enumerate(corpus_probs):
+            print(i)
+            sse += (grammar.p_grammatical(tree) - p)**2 - beta*prior.pdf(p)
 
         return sse
 
-    def train(self, corpus_file, feature_file, free_params, prior, beta):
+    @staticmethod
+    def train(sl_functions, corpus_file, feature_file, feature_key, free_params, prior_params, beta):
         '''
         Straightforward adaptation from Connor's pTSL code
+        :param sl_functions: List(Function), a list of functions to be used to check grammaticality
         :param corpus_file: Str, location of corpus_file
         :param feature_file: Str, location of feature_file
         :param free_params: List(Str), dictionary keys from proj_dict whose probabilities will be optimized
@@ -300,9 +306,15 @@ class TSL2_Grammar:
         :param beta: float, regularization constant
         :return:
         '''
+        prior = scipy.stats.beta(*prior_params)
 
-        features = read_feature_file(feature_file)
-        corpus_probs = read_corpus_file(corpus_file, features)
+        print("Reading feature file")
+        features = read_feature_file(feature_file, feature_key)
+        print("Reading training data")
+        corpus_scores = read_corpus_file(corpus_file, features)
+
+        if not free_params:
+            free_params = list(set([x for feat_set in features.values() for x in feat_set]))
 
         # create bounds
         # instead of limiting bound for fixed value, I removed it completely from the parameter
@@ -310,12 +322,22 @@ class TSL2_Grammar:
 
         # randomly initialize parameter - this will be the input
         proj_probs = rand(len(free_params))
+
+        grammar = TSL2_Grammar(sl_functions, {})
+
+        def callback(X):
+            print(X)
+
+        print("Beginning training")
         # run the minimize function
-        proj_res = minimize(self.evaluate_proj,
+        proj_res = minimize(TSL2_Grammar.evaluate_proj,
                             proj_probs,
                             bounds=bounds,
                             method='L-BFGS-B',
-                            args=(free_params, corpus_probs, prior, beta))
+                            args=(grammar, free_params, corpus_scores, prior, beta),
+                            callback=callback)
+
+        return grammar
 
     def p_grammatical(self, tree: Tree):
         '''
@@ -333,7 +355,6 @@ class TSL2_Grammar:
         :return: List(Tuple(List(Tree), float)) new list of (children, probability) tuples of possible children the
         parent node has to worry about and their probability
         '''
-
         first, *rest = child_projections
         # base case, return list
         if not rest:
@@ -349,52 +370,29 @@ class TSL2_Grammar:
         return [(projection, prob) for projection, prob in projections_products if prob != 0]
 
 
-def read_corpus_file(corpus_file, features, key=KEY):
+def read_corpus_file(corpus_file, features):
     '''
     :param corpus_file: file of sentence trees and probabilities
     :param features: dictionary of labels: features
-    :param key: location of key file relating sentence IDs to subject ratings
     :return: list of tuples contain (tree, judgment score) pairs
     '''
-
-    with open(key, encoding="utf-8-sig") as key_file:
-        key_df = pd.read_csv(key_file, encoding="utf-8-sig")
-
     with open(corpus_file, encoding="utf-8-sig") as c_file:
         corpus_df = pd.read_csv(c_file, encoding="utf-8-sig")
 
-    total_df = pd.merge(corpus_df, key_df, left_on="id", right_on="item")
-    total_df = total_df[['tree', 'judgment']]
-    #    reader = csv.reader(c_file)
-    #    corpus = [(Tree.from_str(row[0], features), float(row[1])) for row in reader]
+    return [(Tree.from_str(row['tree'], features), row['zscores']) for _, row in corpus_df.iterrows()]
 
-    return [(Tree.from_str(row['tree'], features), row['judgment']) for _, row in total_df.iterrows()]
-
-
-def read_feature_file(feature_file, simple=True):
+def read_feature_file(feature_file, feature_key, entry_key="symbol"):
     '''
     :param feature_file: location of feature_file
-    :return:
+    :param feature_key: the column name in the file that contains features
+    :param entry_key: the column name in the file that contains symbols
+    :return: A dictionary mapping symbols to features
     '''
     with open(feature_file, encoding="utf-8-sig") as f_file:
         feature_df = pd.read_csv(f_file, encoding="utf-8-sig")
-    if simple:
-        features = {row['symbol']: {row['symbol']} for _, row in feature_df.iterrows()}
-        return features
 
-    features = {row['symbol']: set(row['features'].split(' ')) for _, row in feature_df.iterrows()}
+    features = {row[entry_key]: set(row[feature_key].split(' ')) for _, row in feature_df.iterrows()}
     return features
-
-
-# Sample projection dictionaries with lexically-specific probabilities possible
-
-project_dict = {
-    'wh+': 1,
-    'wh-': 1,
-    'C': 0,
-    'C2': .5,
-    'T': 0
-}
 
 def check_wh(tree):
     """
@@ -406,6 +404,40 @@ def check_wh(tree):
         return tree.count_child_features('wh-') == 0
 
 if __name__ == '__main__':
-    # TODO: Add a command-line interface once the functionality is stable
-    treebank_str = "(C-mat-wh (T-pres (lv-tr (who) (think (that (T-past (lv-tr (D-e (Matt)) (chase (the (bus))))))))))"
-    print(Tree.from_str(treebank_str, {}))
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "training_file", type=str, 
+        help="The path to the .csv containing the training data"
+    )
+    parser.add_argument(
+        "feature_file", type=str,
+        help="The path to the .csv containing the mapping from lexical symbols"
+             "to features."
+    )
+    parser.add_argument(
+        "--feature_key", type=str, default="features",
+        help="The column name in the feautres file that contains features."
+    )
+    parser.add_argument(
+        "--free_params", type=str, default=None,
+        help="The projection probabilities that will be learned. If this is "
+             "not specified, probabilities will be learned for all symbols."
+    )
+    parser.add_argument(
+        "--prior_params", nargs="+", type=float, default=[1, 1],
+        help="Parameters (a, b) for prior beta distribution over projection "
+             "probabilities. This is specified as a pair of numbers separated "
+             "by a space."
+    )
+    parser.add_argument(
+        "--beta", type=float, default=0,
+        help="Regularization penalty. Higher values penalize fitted values "
+             "that deviate from the prior more strongly."
+    )
+
+    args = parser.parse_args()
+    trained_grammar = TSL2_Grammar.train([check_wh],
+        args.training_file, args.feature_file, args.feature_key, args.free_params, 
+        args.prior_params, args.beta
+    )
