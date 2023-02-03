@@ -25,4 +25,7 @@ scores <- scores %>%
 # Combine data
 combined <- inner_join(scores, trees, by='item')
 
+combined <- combined %>% 
+  mutate(score = (zscores-min(zscores))/(max(zscores)-min(zscores)))
+
 write_csv(combined, 'data/training_data.csv')
