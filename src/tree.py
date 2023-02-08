@@ -12,6 +12,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from numpy.random import rand
 from scipy.optimize import minimize
+from scipy import stats
 
 well_formed_cache = {}
 
@@ -32,8 +33,8 @@ class Tree():
 
     def __hash__(self):
         if not self.hash_cache:
-            child_hashes = hash(hash(child), for child in self.children)
-            self.hash_cache = hash((self.label, self.features, child_hashes))
+            child_hash = hash((hash(child) for child in self.children))
+            self.hash_cache = hash((self.label, self.features, child_hash))
         
         return self.hash_cache
 
@@ -49,13 +50,13 @@ class Tree():
             tabs = ''.join(['  '] * depth)
 
             if self.children:
-                child_string = '\n{}{}'.format(
+                child_string = '\n{} {}'.format(
                     tabs,
                     '\n{}'.format(tabs).join(
                     child.__str__(depth + 1) for child in self.children
                 )
             )
-            result = "{}{}\n{}".format(
+            result = "{} {}\n{}".format(
                 self.label, 
                 self.features,
                 child_string
@@ -73,7 +74,7 @@ class Tree():
         Not currently used, but could be helpful if you want to implement
         the SL-2 functions as string functions over child strings.
         """
-        return ' '.join('{}{}'.format(child.label, child.features) 
+        return ' '.join('{}{}'.format(child.label, child.features)
             for child in self.children
         )
 
@@ -119,6 +120,7 @@ class Tree():
                     break
 
             well_formed_cache[self] = wf
+            #breakpoint()
         else:
             wf = well_formed_cache[self]
         return wf
@@ -169,7 +171,7 @@ class Tree():
         if parent in feature_dict:
             features = feature_dict[parent]
         else:
-            features = {parent}
+            features = parent
 
         if not children:
             tree = Tree(
@@ -209,7 +211,7 @@ class TSL2_Grammar:
         # Optimization 2: Fail early
         val = True
         for f in self.functions:
-            val = val and tree.check_well_formed(f)
+            val = (val and tree.check_well_formed(f))
             if not val:
                 break
         return val
@@ -287,6 +289,8 @@ class TSL2_Grammar:
         for i, (tree, p) in enumerate(corpus_probs):
             #print(i)
             # start = time.time()
+            #print(tree)
+            #print(grammar.p_grammatical(tree))
             sse += (grammar.p_grammatical(tree) - p)**2
             # end = time.time()
             # print("Took {}".format(end - start))
@@ -320,6 +324,7 @@ class TSL2_Grammar:
         else:
             regex = '|'.join(free_params_subs)
             free_params = [x for x in list(set(features.values())) if re.search(regex, x)]
+        print(free_params)
 
         # create bounds
         # instead of limiting bound for fixed value, I removed it completely from the parameter
@@ -346,7 +351,9 @@ class TSL2_Grammar:
         :param proj_dict: Features to project
         :return: Probability tree is grammatical under this instantiation of grammar
         '''
-        projection_probs = self.projection_p(tree) 
+        projection_probs = self.projection_p(tree)
+        grammatical = [(proj, self.is_grammatical(proj)) for proj, prob in projection_probs]
+        breakpoint()
         return sum([prob for proj, prob in projection_probs if prob > 0 and self.is_grammatical(proj)])
 
     @staticmethod
