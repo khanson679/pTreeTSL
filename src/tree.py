@@ -9,6 +9,7 @@ import time
 import warnings
 
 from collections import defaultdict
+from copy import deepcopy
 from dataclasses import dataclass
 from numpy.random import rand
 from scipy.optimize import minimize
@@ -29,41 +30,35 @@ class Tree():
             self.children = children
 
         self.str_cache = None
-        self.hash_cache = None
-
-    def __hash__(self):
-        if not self.hash_cache:
-            child_hash = hash((hash(child) for child in self.children))
-            self.hash_cache = hash((self.label, self.features, child_hash))
-        
-        return self.hash_cache
 
     def __eq__(self, other):
-        return hash(self) == hash(other)
+        return (
+            self.label == other.label and
+            self.features == other.features and
+            self.children == other.children
+        )
 
     def __str__(self, depth=1):
         """
         This returns a printable string, not the string used for TSL
         """
-        if not self.str_cache:
-            child_string = ''
-            tabs = ''.join(['  '] * depth)
+        child_string = ''
+        tabs = ''.join(['  '] * depth)
 
-            if self.children:
-                child_string = '\n{} {}'.format(
-                    tabs,
-                    '\n{}'.format(tabs).join(
-                    child.__str__(depth + 1) for child in self.children
-                )
+        if self.children:
+            child_string = '\n{} {}'.format(
+                tabs,
+                '\n{}'.format(tabs).join(
+                child.__str__(depth + 1) for child in self.children
             )
-            result = "{} {}\n{}".format(
-                self.label, 
-                self.features,
-                child_string
-            )
-            self.str_cache = result
+        )
+        result = "{} {}\n{}".format(
+            self.label, 
+            self.features,
+            child_string
+        )
 
-        return self.str_cache
+        return result
 
     def __repr__(self):
         return self.__str__()
@@ -111,7 +106,7 @@ class Tree():
         Checks whether a tree is well formed given an SL function.
         """
         # Optimization 1: Exit early if we find any illicit child
-        if not self in well_formed_cache:
+        if not str(self) in well_formed_cache:
             wf = sl_function(self)
             
             for child in self.children:
@@ -119,10 +114,9 @@ class Tree():
                 if not wf:
                     break
 
-            well_formed_cache[self] = wf
-            #breakpoint()
+            well_formed_cache[str(self)] = wf
         else:
-            wf = well_formed_cache[self]
+            wf = well_formed_cache[str(self)]
         return wf
 
     def count_child_features(self, feature):
@@ -231,8 +225,8 @@ class TSL2_Grammar:
         :param tree: Tree
         :return: List(Tuple(Tree, float)), list of projections and their probabilities
         '''
-        if tree in self.proj_p_helper_cache:
-            return self.proj_p_helper_cache[tree]
+        if str(tree) in self.proj_p_helper_cache:
+            return self.proj_p_helper_cache[str(tree)]
 
         prob = self.proj_dict[tree.features]
 
@@ -263,7 +257,7 @@ class TSL2_Grammar:
                 if prob != 1:
                     result.append((children, (1 - prob) * val))
 
-        self.proj_p_helper_cache[tree] = result
+        self.proj_p_helper_cache[str(tree)] = result
 
         return result
 
@@ -353,7 +347,6 @@ class TSL2_Grammar:
         '''
         projection_probs = self.projection_p(tree)
         grammatical = [(proj, self.is_grammatical(proj)) for proj, prob in projection_probs]
-        breakpoint()
         return sum([prob for proj, prob in projection_probs if prob > 0 and self.is_grammatical(proj)])
 
     @staticmethod
@@ -376,7 +369,6 @@ class TSL2_Grammar:
                 # make a new projection/probability pair which is the two lists appended and their probs multiplied
                 projections_products.append((f_projection[0]+r_projection[0], f_projection[1]*r_projection[1]))
         # remove 0 prob projections to prevent wasteful memory usage
-        # breakpoint()
         return [(projection, prob) for projection, prob in projections_products if prob != 0]
 
 def read_corpus_file(corpus_file, features):
