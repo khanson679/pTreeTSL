@@ -1,2 +1,3 @@
 ﻿id,sent,tree,score
-WH.sub.isl.lg.05,Who that?,(C-mat-wh (that (who))),1
+WH.sub.isl.lg.05,Who that?,(C-mat-wh (him (steal) (that (who)))),0
+WH.sub.isl.lg.05,Who?,(C-mat-wh (who)),1

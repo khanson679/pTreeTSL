@@ -12,6 +12,7 @@ from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
 from numpy.random import rand
+from scipy.special import xlogy
 from scipy.optimize import minimize
 from scipy import stats
 
@@ -262,7 +263,7 @@ class TSL2_Grammar:
         return result
 
     @staticmethod
-    def evaluate_proj(proj_probs, grammar, params, corpus_probs, prior, beta):
+    def evaluate_proj(proj_probs, grammar, params, fixed_params, corpus_probs, beta):
         # may be rewritten to use a more motivated method than sse
         '''
         Straightforward adaptation from Connor's pTSL code
@@ -270,12 +271,14 @@ class TSL2_Grammar:
         :param grammar
         :param params: List(Str) Keys for proj_dict
         :param corpus_probs: Tuple(Tree, float) trees and their acceptability/grammaticality probability
-        :param prior: scipy.stats.beta, a prior on the bernoulli RVs
         :param beta: float, regularization penalty
         :return:
         '''
         for i, param in enumerate(params):
             grammar.proj_dict[param] = proj_probs[i]
+
+        for i, param in enumerate(fixed_params):
+            grammar.proj_dict[param] = 1
 
         grammar.clear_caches()
 
@@ -290,22 +293,21 @@ class TSL2_Grammar:
             # print("Took {}".format(end - start))
         print(proj_probs)
         print(sse)
-        score = sse - beta * sum(prior.pdf(proj_probs))
+        score = sse - beta * sum([xlogy(prob, prob)+xlogy(1-prob, 1-prob) for prob in proj_probs])
         return score
 
     @staticmethod
-    def train(sl_functions, corpus_file, feature_file, feature_key, free_params_subs, prior_params, beta):
+    def train(sl_functions, corpus_file, feature_file, feature_key, free_params_subs, fixed_params, beta):
         '''
         Straightforward adaptation from Connor's pTSL code
         :param sl_functions: List(Function), a list of functions to be used to check grammaticality
         :param corpus_file: Str, location of corpus_file
         :param feature_file: Str, location of feature_file
         :param free_params: List(Str), dictionary keys from proj_dict whose probabilities will be optimized
-        :param prior: scipy.stats.beta, a prior on the bernoulli RVs
+        :param fixed_params: List(Str), dictionary keys from proj_dict to set to 1
         :param beta: float, regularization constant
         :return:
         '''
-        prior = scipy.stats.beta(*prior_params)
 
         print("Reading feature file")
         features = read_feature_file(feature_file, feature_key)
@@ -319,6 +321,12 @@ class TSL2_Grammar:
             regex = '|'.join(free_params_subs)
             free_params = [x for x in list(set(features.values())) if re.search(regex, x)]
         print(free_params)
+
+        if not fixed_params:
+            fixed_params = []
+        else:
+            regex = '|'.join(free_params_subs)
+            fixed_params = [x for x in list(set(features.values())) if re.search(regex, x)]
 
         # create bounds
         # instead of limiting bound for fixed value, I removed it completely from the parameter
@@ -335,7 +343,7 @@ class TSL2_Grammar:
                             proj_probs,
                             bounds=bounds,
                             method='L-BFGS-B',
-                            args=(grammar, free_params, corpus_scores, prior, beta))
+                            args=(grammar, free_params, fixed_params, corpus_scores, beta))
 
         return grammar
 
@@ -346,8 +354,9 @@ class TSL2_Grammar:
         :return: Probability tree is grammatical under this instantiation of grammar
         '''
         projection_probs = self.projection_p(tree)
-        grammatical = [(proj, self.is_grammatical(proj)) for proj, prob in projection_probs]
-        return sum([prob for proj, prob in projection_probs if prob > 0 and self.is_grammatical(proj)])
+        p_g = sum([prob for proj, prob in projection_probs if prob > 0 and self.is_grammatical(proj)])
+        #breakpoint()
+        return p_g
 
     @staticmethod
     def child_product(child_projections):
@@ -426,12 +435,17 @@ if __name__ == '__main__':
         help="The projection probabilities that will be learned. If this is "
              "not specified, probabilities will be learned for all symbols."
     )
+
     parser.add_argument(
-        "--prior_params", nargs="+", type=float, default=[1, 1],
-        help="Parameters (a, b) for prior beta distribution over projection "
-             "probabilities. This is specified as a pair of numbers separated "
-             "by a space."
+        "--fixed_params", nargs="+", type=str, default=None,
+        help="The parameters that will always project (probability of projection fixed to 1)."
     )
+    #parser.add_argument(
+    #    "--prior_params", nargs="+", type=float, default=[1, 1],
+    #    help="Parameters (a, b) for prior beta distribution over projection "
+    #         "probabilities. This is specified as a pair of numbers separated "
+    #         "by a space."
+    #)
     parser.add_argument(
         "--beta", type=float, default=0,
         help="Regularization penalty. Higher values penalize fitted values "
@@ -441,7 +455,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     trained_grammar = TSL2_Grammar.train([check_wh],
         args.training_file, args.feature_file, args.feature_key, args.free_params, 
-        args.prior_params, args.beta
+        args.fixed_params, args.beta
     )
 
-    # python src/tree.py data/training_data.csv data/ptreetsl_lexicon.csv --feature_key features --free_params wh C  --prior_params 1 1 --beta 1
+    # python src/tree.py data/training_data.csv data/ptreetsl_lexicon.csv --feature_key features --free_params C wh --beta 1
