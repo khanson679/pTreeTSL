@@ -270,10 +270,10 @@ class TSL2_Grammar:
             #print(tree)
             #print(grammar.p_grammatical(tree))
             sse += (self.p_grammatical(tree) - p)**2
-            if normalize:
-                sse /= len(corpus_probs)
             # end = time.time()
             # print("Took {}".format(end - start))
+        if normalize:
+            sse /= len(corpus_probs)
         return sse
 
     @staticmethod
@@ -297,9 +297,10 @@ class TSL2_Grammar:
         grammar.clear_caches()
 
         sse = grammar.get_sse(corpus_probs)
+        bias =  beta * sum(xlogy(proj_probs, proj_probs) + xlogy(1 - proj_probs, 1 - proj_probs))
         print(proj_probs)
         print(sse)
-        score = sse - beta * sum(xlogy(proj_probs, proj_probs) + xlogy(1 - proj_probs, 1 - proj_probs))
+        score = sse - bias
         return score
 
     @staticmethod
@@ -329,7 +330,6 @@ class TSL2_Grammar:
                 reader = csv.reader(f)
                 regex = '|'.join(re.escape(x[0]) for x in reader)
             free_params = [x for x in list(set(features.values())) if re.search(regex, x)]
-        print(free_params)
 
 
         if not fixed_params:
@@ -339,6 +339,10 @@ class TSL2_Grammar:
                 reader = csv.reader(f)
                 regex = '|'.join(re.escape(x[0]) for x in reader)
             fixed_params = [x for x in list(set(features.values())) if re.search(regex, x)]
+
+        free_params = list(set(free_params) - set(fixed_params))
+        print("Free params: {}".format(free_params))
+        print("Fixed params: {}".format(fixed_params))
 
         # create bounds
         # instead of limiting bound for fixed value, I removed it completely from the parameter
