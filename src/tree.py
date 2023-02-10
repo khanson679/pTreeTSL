@@ -262,6 +262,20 @@ class TSL2_Grammar:
 
         return result
 
+    def get_sse(self, corpus_probs, normalize=True):
+        sse = 0
+        for i, (_, tree, p) in enumerate(corpus_probs):
+            #print(i)
+            # start = time.time()
+            #print(tree)
+            #print(grammar.p_grammatical(tree))
+            sse += (self.p_grammatical(tree) - p)**2
+            if normalize:
+                sse /= len(corpus_probs)
+            # end = time.time()
+            # print("Took {}".format(end - start))
+        return sse
+
     @staticmethod
     def evaluate_proj(proj_probs, grammar, params, fixed_params, corpus_probs, beta):
         # may be rewritten to use a more motivated method than sse
@@ -282,22 +296,15 @@ class TSL2_Grammar:
 
         grammar.clear_caches()
 
-        sse = 0
-        for i, (tree, p) in enumerate(corpus_probs):
-            #print(i)
-            # start = time.time()
-            #print(tree)
-            #print(grammar.p_grammatical(tree))
-            sse += (grammar.p_grammatical(tree) - p)**2
-            # end = time.time()
-            # print("Took {}".format(end - start))
+        sse = grammar.get_sse(corpus_probs)
         print(proj_probs)
         print(sse)
-        score = sse - beta * sum([xlogy(prob, prob)+xlogy(1-prob, 1-prob) for prob in proj_probs])
+        score = sse - beta * sum(xlogy(proj_probs, proj_probs) + xlogy(1 - proj_probs, 1 - proj_probs))
         return score
 
     @staticmethod
-    def train(sl_functions, corpus_file, feature_file, feature_key, free_params_subs, fixed_params, beta):
+    def train(sl_functions, corpus_file, feature_file, feature_key, 
+              free_params_subs, fixed_params, betas, outfile, name, itr):
         '''
         Straightforward adaptation from Connor's pTSL code
         :param sl_functions: List(Function), a list of functions to be used to check grammaticality
@@ -318,32 +325,63 @@ class TSL2_Grammar:
         if not free_params_subs:
             free_params = list(set(features.values()))
         else:
-            regex = '|'.join(free_params_subs)
+            with open(free_params_subs) as f:
+                reader = csv.reader(f)
+                regex = '|'.join(re.escape(x[0]) for x in reader)
             free_params = [x for x in list(set(features.values())) if re.search(regex, x)]
         print(free_params)
+
 
         if not fixed_params:
             fixed_params = []
         else:
-            regex = '|'.join(free_params_subs)
+            with open(fixed_params) as f:
+                reader = csv.reader(f)
+                regex = '|'.join(re.escape(x[0]) for x in reader)
             fixed_params = [x for x in list(set(features.values())) if re.search(regex, x)]
 
         # create bounds
         # instead of limiting bound for fixed value, I removed it completely from the parameter
         bounds = [(0, 1) for _ in range(len(free_params))]
 
-        # randomly initialize parameter - this will be the input
-        proj_probs = rand(len(free_params))
+        if outfile:
+            header = ['name', 'beta', 'itr', 'sse', 'obj', 'item', 'model_score', 'human_score']
+            header.extend(free_params)
 
-        grammar = TSL2_Grammar(sl_functions, defaultdict(int))
+            with open(outfile, 'w') as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
 
-        print("Beginning training")
-        # run the minimize function
-        proj_res = minimize(TSL2_Grammar.evaluate_proj,
-                            proj_probs,
-                            bounds=bounds,
-                            method='L-BFGS-B',
-                            args=(grammar, free_params, fixed_params, corpus_scores, beta))
+        for beta in betas:
+            for i in range(itr):
+                # randomly initialize parameter - this will be the input
+                proj_probs = rand(len(free_params))
+
+                grammar = TSL2_Grammar(sl_functions, defaultdict(int))
+
+                print("Beginning training")
+                # run the minimize function
+                proj_res = minimize(TSL2_Grammar.evaluate_proj,
+                                    proj_probs,
+                                    bounds=bounds,
+                                    method='L-BFGS-B',
+                                    args=(grammar, free_params, fixed_params, corpus_scores, beta))
+                print(proj_res)
+
+                if outfile:
+                    fitted_probs = proj_res.x
+                    obj = proj_res.fun
+                    sse = grammar.get_sse(corpus_scores)
+                    row_base = [name, beta, i, sse, obj]
+                    row_base.extend(fitted_probs)
+                    rows = []
+                    for (item, tree, human_score) in corpus_scores:
+                        model_score = grammar.p_grammatical(tree)
+                        rows.append(row_base + [item, model_score, human_score])
+
+                    with open(outfile, 'a') as f:
+                        writer = csv.writer(f)
+                        writer.writerows(rows)
 
         return grammar
 
@@ -355,7 +393,6 @@ class TSL2_Grammar:
         '''
         projection_probs = self.projection_p(tree)
         p_g = sum([prob for proj, prob in projection_probs if prob > 0 and self.is_grammatical(proj)])
-        #breakpoint()
         return p_g
 
     @staticmethod
@@ -388,8 +425,7 @@ def read_corpus_file(corpus_file, features):
     '''
     with open(corpus_file, encoding="utf-8-sig") as c_file:
         corpus_df = pd.read_csv(c_file, encoding="utf-8-sig")
-
-    return [(Tree.from_str(row['tree'], features), row['score']) for _, row in corpus_df.iterrows()]
+    return [(row['item'], Tree.from_str(row['tree'], features), row['score']) for _, row in corpus_df.iterrows()]
 
 def read_feature_file(feature_file, feature_key, entry_key="symbol"):
     '''
@@ -404,6 +440,9 @@ def read_feature_file(feature_file, feature_key, entry_key="symbol"):
     # features = {row[entry_key]: set(row[feature_key].split(' ')) for _, row in feature_df.iterrows()}
     features = {row[entry_key]: row[feature_key] for _, row in feature_df.iterrows()}
     return features
+
+def write_results_file():
+    pass
 
 def check_wh(tree):
     """
@@ -431,31 +470,40 @@ if __name__ == '__main__':
         help="The column name in the feautres file that contains features."
     )
     parser.add_argument(
-        "--free_params", nargs="+", type=str, default=None,
-        help="The projection probabilities that will be learned. If this is "
+        "--free_params", type=str, default=None,
+        help="File containing list of featural substrings to choose included features. If this is "
              "not specified, probabilities will be learned for all symbols."
     )
-
     parser.add_argument(
-        "--fixed_params", nargs="+", type=str, default=None,
+        "--fixed_params", type=str, default=None,
         help="The parameters that will always project (probability of projection fixed to 1)."
     )
-    #parser.add_argument(
-    #    "--prior_params", nargs="+", type=float, default=[1, 1],
-    #    help="Parameters (a, b) for prior beta distribution over projection "
-    #         "probabilities. This is specified as a pair of numbers separated "
-    #         "by a space."
-    #)
     parser.add_argument(
-        "--beta", type=float, default=0,
+        "--beta", nargs="+", type=float, default=(0,),
         help="Regularization penalty. Higher values penalize fitted values "
              "that deviate from the prior more strongly."
+    )
+    parser.add_argument(
+        '--outfile', type=str, default=None,
+        help="Path to save model results to."
+    )
+    parser.add_argument(
+        '--name', type=str, default='model',
+        help='Model name'
+    )
+    parser.add_argument(
+        '--itr', type=str, default=10,
+        help='Number of times to re-run optimization'
     )
 
     args = parser.parse_args()
     trained_grammar = TSL2_Grammar.train([check_wh],
         args.training_file, args.feature_file, args.feature_key, args.free_params, 
-        args.fixed_params, args.beta
+        args.fixed_params, args.beta, args.outfile, args.name, args.itr
     )
+
+    features = read_feature_file(args.feature_file, args.feature_key)
+    corpus_scores = read_corpus_file(args.training_file, features)
+    breakpoint()
 
     # python src/tree.py data/training_data.csv data/ptreetsl_lexicon.csv --feature_key features --free_params C wh --beta 1

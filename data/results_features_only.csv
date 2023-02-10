@@ -1,0 +1,1 @@
+name,beta,itr,sse,obj,item,model_score,human_score,-D -wh,if:: +T -C,C-emb-decl:: +T -C,that-rel:: +T +wh -C,+C-emb-wh:: T +wh -C,C-mat-decl:: +T -C,whether:: +T -C,that:: +T -C,C-mat-wh:: +T +wh -C,+C -N,C-rel:: +T +wh -C
