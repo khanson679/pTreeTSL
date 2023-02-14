@@ -9,7 +9,7 @@ setwd("C:/Users/conno/git_repos/pTreeTSL")
 scores_file <- "data/response_key.csv"
 scores <- read_csv(scores_file)
 
-trees_file <- "data/ptreetsl_trees.csv"
+trees_file <- "data/ptreetsl_trees_no_multiples.csv"
 trees <- read_csv(trees_file)
 
 # Remove extra columns. Keep all the columns in scores in case we want
@@ -20,7 +20,9 @@ trees <- trees %>%
 
 # Remove missing judgments
 scores <- scores %>%
-  filter(!is.na(judgment))
+  filter(!is.na(judgment)) %>%
+  group_by(item) %>%
+  summarize(zscores = mean(zscores))
 
 # Combine data
 combined <- inner_join(scores, trees, by='item')
@@ -28,4 +30,4 @@ combined <- inner_join(scores, trees, by='item')
 combined <- combined %>% 
   mutate(score = (zscores-min(zscores))/(max(zscores)-min(zscores)))
 
-write_csv(combined, 'data/training_data.csv')
+write_csv(combined, 'data/training_data_agg_no_multiples.csv')

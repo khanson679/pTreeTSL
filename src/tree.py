@@ -211,6 +211,14 @@ class TSL2_Grammar:
                 break
         return val
 
+    def score_dataset(self, dataset):
+        probs = []
+        for label, tree, score in dataset:
+            model_score = self.p_grammatical(tree)
+            probs.append((label, tree, score, model_score, abs(model_score - score)))
+
+        return probs
+
     def projection_p(self, tree: Tree):
         '''
         Returns a list of projections of tree and their probabilities
@@ -496,7 +504,7 @@ if __name__ == '__main__':
         help='Model name'
     )
     parser.add_argument(
-        '--itr', type=str, default=10,
+        '--itr', type=int, default=10,
         help='Number of times to re-run optimization'
     )
 
@@ -506,8 +514,29 @@ if __name__ == '__main__':
         args.fixed_params, args.beta, args.outfile, args.name, args.itr
     )
 
-    features = read_feature_file(args.feature_file, args.feature_key)
-    corpus_scores = read_corpus_file(args.training_file, features)
+    # features = read_feature_file(args.feature_file, args.feature_key)
+    # corpus_scores = read_corpus_file(args.training_file, features)
+    # proj_dict = defaultdict(int)
+    # proj_dict_contents = {
+    #     'whether:: +T -C': 1,
+    #     '-D -wh': 1,
+    #     'that:: +T +wh -C': 1,
+    #     'e:: +T +wh -C': 1,
+    #     'if:: +T -C': 1,
+    #     '+C -N': 1,
+
+    #     'e:: +T -C': 0,
+    #     'that:: +T -C': 0
+    # }
+    # for key, value in proj_dict_contents.items():
+    #     proj_dict[key] = value
+
+    # grammar = TSL2_Grammar([check_wh], proj_dict)
+    # scores = grammar.score_dataset(corpus_scores)
+
+    # list_to_save = [(item, human_score, model_score, delta) for item, _, human_score, model_score, delta in scores]
+    # df = pd.DataFrame(list_to_save)
+    # df.to_csv("results/test_results.csv", header=False, index=False)
     breakpoint()
 
     # python src/tree.py data/training_data.csv data/ptreetsl_lexicon.csv --feature_key features --free_params C wh --beta 1
