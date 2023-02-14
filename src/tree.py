@@ -313,7 +313,7 @@ class TSL2_Grammar:
 
     @staticmethod
     def train(sl_functions, corpus_file, feature_file, feature_key, 
-              free_params_subs, fixed_params, betas, outfile, name, itr):
+              free_params_subs, fixed_params, betas, outfile, name, itr, is_categorical):
         '''
         Straightforward adaptation from Connor's pTSL code
         :param sl_functions: List(Function), a list of functions to be used to check grammaticality
@@ -328,7 +328,7 @@ class TSL2_Grammar:
         print("Reading feature file")
         features = read_feature_file(feature_file, feature_key)
         print("Reading training data")
-        corpus_scores = read_corpus_file(corpus_file, features)
+        corpus_scores = read_corpus_file(corpus_file, features, is_categorical)
 
         # Fix this later
         if not free_params_subs:
@@ -429,14 +429,55 @@ class TSL2_Grammar:
         # remove 0 prob projections to prevent wasteful memory usage
         return [(projection, prob) for projection, prob in projections_products if prob != 0]
 
-def read_corpus_file(corpus_file, features):
+def read_corpus_file(corpus_file, features, is_categorical):
     '''
     :param corpus_file: file of sentence trees and probabilities
     :param features: dictionary of labels: features
+    :is_categorical: boolean flag for categorical runs
     :return: list of tuples contain (tree, judgment score) pairs
     '''
     with open(corpus_file, encoding="utf-8-sig") as c_file:
         corpus_df = pd.read_csv(c_file, encoding="utf-8-sig")
+
+    feature_binary = {
+        "WH.whe.non.sh": 1,
+        "WH.whe.non.lg": 1,
+        "WH.whe.isl.sh": 1,
+        "WH.whe.isl.lg": 0,
+        "RC.sub.non.sh": 1,
+        "RC.sub.non.lg": 1,
+        "RC.sub.isl.sh": 1,
+        "RC.sub.isl.lg": 0,
+        "RC.wh.non.sh": 1,
+        "RC.wh.non.lg": 1,
+        "RC.wh.isl.sh": 1,
+        "RC.wh.isl.lg": 0,
+        "WH.sub.non.sh": 1,
+        "WH.sub.non.lg": 1,
+        "WH.sub.isl.sh": 1,
+        "WH.sub.isl.lg": 0,
+        "WH.np.non.sh": 1,
+        "WH.np.non.lg": 1,
+        "WH.np.isl.sh": 1,
+        "WH.np.isl.lg": 0,
+        "RC.adj.non.sh": 1,
+        "RC.adj.non.lg": 1,
+        "RC.adj.isl.sh": 1,
+        "RC.adj.isl.lg": 0,
+        "WH.adj.non.sh": 1,
+        "WH.adj.non.lg": 1,
+        "WH.adj.isl.lg": 0,
+        "WH.adj.isl.sh": 1,
+        "RC.np.non.sh": 1,
+        "RC.np.non.lg": 1,
+        "RC.np.isl.sh": 1,
+        "RC.np.isl.lg": 0
+    }
+
+    if is_categorical:
+        return [(row['item'], Tree.from_str(row['tree'], features), feature_binary[row['condition']])
+                for _, row in corpus_df.iterrows()]
+
     return [(row['item'], Tree.from_str(row['tree'], features), row['score']) for _, row in corpus_df.iterrows()]
 
 def read_feature_file(feature_file, feature_key, entry_key="symbol"):
@@ -507,11 +548,14 @@ if __name__ == '__main__':
         '--itr', type=int, default=10,
         help='Number of times to re-run optimization'
     )
-
+    parser.add_argument(
+        '--categorical', type=bool, default=False,
+        help='Number of times to re-run optimization'
+    )
     args = parser.parse_args()
     trained_grammar = TSL2_Grammar.train([check_wh],
         args.training_file, args.feature_file, args.feature_key, args.free_params, 
-        args.fixed_params, args.beta, args.outfile, args.name, args.itr
+        args.fixed_params, args.beta, args.outfile, args.name, args.itr, args.categorical
     )
 
     # features = read_feature_file(args.feature_file, args.feature_key)
