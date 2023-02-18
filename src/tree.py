@@ -384,12 +384,12 @@ class TSL2_Grammar:
                     fitted_probs = proj_res.x
                     obj = proj_res.fun
                     sse = grammar.get_sse(corpus_scores)
-                    row_base = [name, beta, i, sse, obj]
-                    row_base.extend(fitted_probs)
+                    row_prefix = [name, beta, i, sse, obj]
+                    row_suffix = fitted_probs.tolist()
                     rows = []
                     for (item, tree, human_score) in corpus_scores:
                         model_score = grammar.p_grammatical(tree)
-                        rows.append(row_base + [item, model_score, human_score])
+                        rows.append(row_prefix + [item, model_score, human_score] + row_suffix)
 
                     with open(outfile, 'a') as f:
                         writer = csv.writer(f)
@@ -584,3 +584,4 @@ if __name__ == '__main__':
     breakpoint()
 
     # python src/tree.py data/training_data.csv data/ptreetsl_lexicon.csv --feature_key features --free_params C wh --beta 1
+    # python src/tree.py data/training_data.csv data/ptreetsl_lexicon_phonetic_split_c.csv --feature_key features --free_params data/free_params_fixed.csv --fixed_params data/fixed_params.csv --outfile results/results_split_c.csv
