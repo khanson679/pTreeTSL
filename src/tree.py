@@ -585,3 +585,4 @@ if __name__ == '__main__':
     # df.to_csv(args.outfile, header=False, index=False)
 
     # python src/tree.py data/training_data.csv data/ptreetsl_lexicon.csv --feature_key features --free_params C wh --beta 1
+    # python src/tree.py data/training_data.csv data/ptreetsl_lexicon_phonetic_split_c.csv --feature_key features --free_params data/free_params_fixed.csv --fixed_params data/fixed_params.csv --outfile results/results_split_c.csv
