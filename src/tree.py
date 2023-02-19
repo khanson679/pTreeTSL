@@ -385,15 +385,17 @@ class TSL2_Grammar:
                     obj = proj_res.fun
                     sse = grammar.get_sse(corpus_scores)
                     row_base = [name, beta, i, sse, obj]
-                    row_base.extend(fitted_probs)
                     rows = []
                     for (item, tree, human_score) in corpus_scores:
                         model_score = grammar.p_grammatical(tree)
-                        rows.append(row_base + [item, model_score, human_score])
+                        rows.append(row_base + [item, model_score, human_score] + list(fitted_probs))
 
                     with open(outfile, 'a') as f:
                         writer = csv.writer(f)
                         writer.writerows(rows)
+
+        for i, param in enumerate(free_params):
+            print("{}: {}".format(param, proj_res.x[i]))
 
         return grammar
 
@@ -549,7 +551,7 @@ if __name__ == '__main__':
         help='Number of times to re-run optimization'
     )
     parser.add_argument(
-        '--categorical', type=bool, default=False,
+        '--categorical', action="store_true",
         help='Number of times to re-run optimization'
     )
     args = parser.parse_args()
@@ -559,7 +561,7 @@ if __name__ == '__main__':
     )
 
     # features = read_feature_file(args.feature_file, args.feature_key)
-    # corpus_scores = read_corpus_file(args.training_file, features)
+    # corpus_scores = read_corpus_file(args.training_file, features, False)
     # proj_dict = defaultdict(int)
     # proj_dict_contents = {
     #     'whether:: +T -C': 1,
@@ -569,8 +571,8 @@ if __name__ == '__main__':
     #     'if:: +T -C': 1,
     #     '+C -N': 1,
 
-    #     'e:: +T -C': 0,
-    #     'that:: +T -C': 0
+    #     'e:: +T -C': 0.25,
+    #     'that:: +T -C': 0.12
     # }
     # for key, value in proj_dict_contents.items():
     #     proj_dict[key] = value
@@ -580,7 +582,6 @@ if __name__ == '__main__':
 
     # list_to_save = [(item, human_score, model_score, delta) for item, _, human_score, model_score, delta in scores]
     # df = pd.DataFrame(list_to_save)
-    # df.to_csv("results/test_results.csv", header=False, index=False)
-    breakpoint()
+    # df.to_csv(args.outfile, header=False, index=False)
 
     # python src/tree.py data/training_data.csv data/ptreetsl_lexicon.csv --feature_key features --free_params C wh --beta 1
