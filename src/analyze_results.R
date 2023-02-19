@@ -4,7 +4,7 @@ library(tidyverse)
 # colnames(df) <- c("item", 'human_score', 'model_score', 'difference')
 
 
-df <- read_csv("../results/agg/no_fixed_split_c.csv")
+df <- read_csv("../results/agg/fixed_c_free_wh.csv")
 
 # Visualize learned parameters
 df %>%
@@ -12,7 +12,7 @@ df %>%
   pivot_longer(c(-beta, -name), names_to="param") %>%
   ggplot(aes(x=param, y=value)) +
   geom_boxplot()
-ggsave("../figs/params_no_fixed_split_c.png")
+ggsave("../figs/agg/params_fixed_c_free_wh.png")
 
 # Plot scores
 plot_df <- df %>%
@@ -35,7 +35,7 @@ ggplot(scores_df, aes(x=matrix, y=score_mean, color=island, group=island)) +
   geom_line() +
   geom_point() + 
   facet_grid(~type)
-ggsave("../figs/model_scores_no_fixed_split_c.png")
+ggsave("../figs/agg/model_scores_fixed_c_free_wh.png")
 
 ggplot(scores_df, aes(x=matrix, y=human_mean, color=island, group=island)) +
   geom_line() +
