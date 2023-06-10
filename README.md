@@ -55,5 +55,7 @@ Results of the model.
 * `name` (optional): Model name. Used in output files.
 * `itr` (optional): Number of times to re-run optimization).
 
-Some examples of running `tree.py` from the command line can be found in [commands.txt].
+The command used to run the model in the paper was:
+
+`python src/tree.py data/training_data/training_data_agg_filtered.csv data/lexicon/ptreetsl_lexicon_phonetic.csv --feature_key features --free_params data/free_params/free_params_fixed.csv --fixed_params data/fixed_params/fixed_params_wh.csv --outfile results/results_features_only_fixed.csv`
                        
