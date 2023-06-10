@@ -4,13 +4,13 @@
 
 This repository contains code used in 
 
-Torres, C., Hanson, K., Graf, T., & Mayer, C. (2023). [Modeling island effects with probabilistic tier-based strictly local grammars over trees.](https://sites.socsci.uci.edu/~cjmayer/papers/torres_et_al_pTreeTSL_SCiL_2023.pdf) _Proceedings of the Society for Computation in Linguistics._ Vol. 4. Article 15.
+> `Torres, C., Hanson, K., Graf, T., & Mayer, C. (2023). [Modeling island effects with probabilistic tier-based strictly local grammars over trees.](https://sites.socsci.uci.edu/~cjmayer/papers/torres_et_al_pTreeTSL_SCiL_2023.pdf) _Proceedings of the Society for Computation in Linguistics._ Vol. 4. Article 15.`
 
 This code fits a pTSL grammar to a data set that consists of minimalist dependency trees with associated Likert scores.
 
 ## Structure of the repository
 
-### src
+### src/
 
 The code use in the paper.
 
@@ -18,17 +18,17 @@ The code use in the paper.
 * `produce_training_file.R`: A script to combine Likert ratings from Sprouse et al. (2016) with the corresponding dependency trees.
 * `analyze_results.R`: A script for visualizing the results of the model, computing correlations, etc.
 
-### data
+### data/
 
 This folder contains training and test data sets, as well as configuration files that determine which parameters the model will fit and which will have fixed values.
 
 Details about the dependency tree annotation scheme are given in [data/annotation.md](data/annotation.md).
 
-### figs
+### figs/
 
 Some figures used in the paper.
 
-### results
+### results/
 
 Results of the model.
 
