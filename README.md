@@ -4,7 +4,7 @@
 
 This repository contains code used in 
 
-> `Torres, C., Hanson, K., Graf, T., & Mayer, C. (2023). [Modeling island effects with probabilistic tier-based strictly local grammars over trees.](https://sites.socsci.uci.edu/~cjmayer/papers/torres_et_al_pTreeTSL_SCiL_2023.pdf) _Proceedings of the Society for Computation in Linguistics._ Vol. 4. Article 15.`
+> Torres, C., Hanson, K., Graf, T., & Mayer, C. (2023). [Modeling island effects with probabilistic tier-based strictly local grammars over trees.](https://sites.socsci.uci.edu/~cjmayer/papers/torres_et_al_pTreeTSL_SCiL_2023.pdf) _Proceedings of the Society for Computation in Linguistics._ Vol. 4. Article 15.
 
 This code fits a pTSL grammar to a data set that consists of minimalist dependency trees with associated Likert scores.
 
