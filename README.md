@@ -48,9 +48,9 @@ Results of the model.
 * `training_file` (required): The path to the .csv containing the training data. See the training data sets for examples of the required format.
 * `feature_file` (required): The path to the .csv containing the mapping from lexical symbols to features. See the training data sets for examples of the required format.
 * `feature_key` (optional): The column name in the feautres file that contains features.
-* `free_params` (optional): File containing list of featural substrings to choose included features. If this is not specified, probabilities will be learned for all symbols.
-* `fixed_params` (optional): The parameters that will always project (probability of projection fixed to 1).
-* `beta` (optional): Regularization penalty. Higher values will force learned parameters to be closer to 0 or 1 (i.e. more categorical). Defaults to 0 (no regularization). Not used in the paper.
+* `free_params` (optional): Path to a file containing a list of parameters to be fit. One parameter on each line. If this is not specified, probabilities will be learned for all symbols. Parameters that are not specified here will be assigned projection probabilities of 0, unless they are included in the fixed_params list below.
+* `fixed_params` (optional): Path to a file containing a list of parameters that will always project (probability of projection fixed to 1).
+* `beta` (optional): Regularization penalty. Higher values will force learned parameters to be closer to 0 or 1 (i.e. more categorical). Defaults to 0 (no regularization). Not used in the paper. You can also pass in a list of values separated by spaces, in which case one optimization will be done for each value of beta.
 * `outfile` (optional): Path to save model results to.
 * `name` (optional): Model name. Used in output files.
 * `itr` (optional): Number of times to re-run optimization).
