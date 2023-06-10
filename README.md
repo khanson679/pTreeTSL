@@ -20,7 +20,17 @@ The code use in the paper.
 
 ### data/
 
-This folder contains training and test data sets, as well as configuration files that determine which parameters the model will fit and which will have fixed values.
+This folder contains the following subfolders:
+* `fixed_params`: Configuration files specifying which parameters should have projection probabilities fixed to 1.
+* `free_params`: Configuration files specifying which parameters should be fit to data.
+* `lexicon`: Files specifying mappings between lexical labels and syntactic features.
+* `sprouse_data`: Likert ratings from Sprouse et al. (2016)
+* `training_data`: Files containing Likert rating - dependency tree pairs.
+* `trees`: Annotated trees.
+
+The files with `_agg` correspond to averaged Likert ratings rather than individual participants' ratings. The files with `_filtered` include only the island violations used in the paper, while the files without `_filtered` have the full set of island types from Sprouse et al. (2016). The `no_wh` files correspond to simulations where nodes with `wh` features were treated as free parameters.
+
+The paper used the aggregated, filtered data with `wh` features fixed to 1.
 
 Details about the dependency tree annotation scheme are given in [data/annotation.md](data/annotation.md).
 
