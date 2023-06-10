@@ -1,15 +1,16 @@
 library(tidyverse)
 
+# Change this to your checked out directory
 setwd("C:/Users/conno/git_repos/pTreeTSL")
 
 # This script combines the Sprouse scores and the tree representation of the
 # stimuli into a single csv file used to train the pTSL model
 
 # Load our files
-scores_file <- "data/response_key.csv"
+scores_file <- "data/sprouse_data/response_key.csv"
 scores <- read_csv(scores_file)
 
-trees_file <- "data/ptreetsl_trees.csv"
+trees_file <- "data/ptreetsl_trees_filtered.csv"
 trees <- read_csv(trees_file)
 
 # Remove extra columns. Keep all the columns in scores in case we want

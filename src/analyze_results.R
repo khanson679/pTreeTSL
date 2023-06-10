@@ -1,10 +1,9 @@
 library(tidyverse)
 
-# df <- read_csv("results/prespecified.csv", col_names = FALSE)
-# colnames(df) <- c("item", 'human_score', 'model_score', 'difference')
+# Change this to your checked out directory
+setwd("E:/git_repos/pTreeTSL")
 
-
-df <- read_csv("../results/agg/fixed_c_free_wh.csv")
+df <- read_csv("results/results.csv")
 
 # Visualize learned parameters
 df %>%
@@ -12,7 +11,7 @@ df %>%
   pivot_longer(c(-beta, -name), names_to="param") %>%
   ggplot(aes(x=param, y=value)) +
   geom_boxplot()
-ggsave("../figs/agg/params_fixed_c_free_wh.png")
+ggsave("figs/params.png")
 
 # Plot scores
 plot_df <- df %>%
@@ -35,10 +34,10 @@ ggplot(scores_df, aes(x=matrix, y=score_mean, color=island, group=island)) +
   geom_line() +
   geom_point() + 
   facet_grid(~type)
-ggsave("../figs/agg/model_scores_fixed_c_free_wh.png")
+ggsave("figs/agg/model_scores.png")
 
 ggplot(scores_df, aes(x=matrix, y=human_mean, color=island, group=island)) +
   geom_line() +
   geom_point() + 
   facet_grid(~type)
-ggsave("../figs/human_scores.png")
+ggsave("figs/human_scores.png")

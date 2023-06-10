@@ -2,20 +2,15 @@ import argparse
 import csv
 import pyparsing as pp
 import pandas as pd
-import random
 import re
-import scipy
-import time
-import warnings
 
 from collections import defaultdict
-from copy import deepcopy
-from dataclasses import dataclass
 from numpy.random import rand
 from scipy.special import xlogy
 from scipy.optimize import minimize
-from scipy import stats
 
+# Cache of well-formed trees to speed up
+# model training
 well_formed_cache = {}
 
 class Tree():
@@ -33,6 +28,7 @@ class Tree():
         self.str_cache = None
 
     def __eq__(self, other):
+        # Test for tree equality
         return (
             self.label == other.label and
             self.features == other.features and
@@ -271,28 +267,23 @@ class TSL2_Grammar:
         return result
 
     def get_sse(self, corpus_probs, normalize=True):
+        # Get SSE for the corpus given the model.
         sse = 0
         for i, (_, tree, p) in enumerate(corpus_probs):
-            #print(i)
-            # start = time.time()
-            #print(tree)
-            #print(grammar.p_grammatical(tree))
             sse += (self.p_grammatical(tree) - p)**2
-            # end = time.time()
-            # print("Took {}".format(end - start))
         if normalize:
             sse /= len(corpus_probs)
         return sse
 
     @staticmethod
     def evaluate_proj(proj_probs, grammar, params, fixed_params, corpus_probs, beta):
-        # may be rewritten to use a more motivated method than sse
         '''
         Straightforward adaptation from Connor's pTSL code
         :param proj_probs: Tuple(float) probabilities in tuple equal length(params)
         :param grammar
         :param params: List(Str) Keys for proj_dict
-        :param corpus_probs: Tuple(Tree, float) trees and their acceptability/grammaticality probability
+        :param corpus_probs: Tuple(Tree, float) trees and their 
+                             acceptability/grammaticality probability
         :param beta: float, regularization penalty
         :return:
         '''
@@ -305,7 +296,9 @@ class TSL2_Grammar:
         grammar.clear_caches()
 
         sse = grammar.get_sse(corpus_probs)
-        bias =  beta * sum(xlogy(proj_probs, proj_probs) + xlogy(1 - proj_probs, 1 - proj_probs))
+        bias =  beta * sum(
+            xlogy(proj_probs, proj_probs) + xlogy(1 - proj_probs, 1 - proj_probs)
+        )
         print(proj_probs)
         print(sse)
         score = sse - bias
@@ -313,13 +306,15 @@ class TSL2_Grammar:
 
     @staticmethod
     def train(sl_functions, corpus_file, feature_file, feature_key, 
-              free_params_subs, fixed_params, betas, outfile, name, itr, is_categorical):
+              free_params_subs, fixed_params, betas, outfile, name, itr):
         '''
         Straightforward adaptation from Connor's pTSL code
-        :param sl_functions: List(Function), a list of functions to be used to check grammaticality
+        :param sl_functions: List(Function), a list of functions 
+                             to be used to check grammaticality
         :param corpus_file: Str, location of corpus_file
         :param feature_file: Str, location of feature_file
-        :param free_params: List(Str), dictionary keys from proj_dict whose probabilities will be optimized
+        :param free_params_subs: List(Str), dictionary keys from proj_dict 
+                                 whose probabilities will be optimized
         :param fixed_params: List(Str), dictionary keys from proj_dict to set to 1
         :param beta: float, regularization constant
         :return:
@@ -328,7 +323,7 @@ class TSL2_Grammar:
         print("Reading feature file")
         features = read_feature_file(feature_file, feature_key)
         print("Reading training data")
-        corpus_scores = read_corpus_file(corpus_file, features, is_categorical)
+        corpus_scores = read_corpus_file(corpus_file, features)
 
         # Fix this later
         if not free_params_subs:
@@ -337,8 +332,10 @@ class TSL2_Grammar:
             with open(free_params_subs) as f:
                 reader = csv.reader(f)
                 regex = '|'.join(re.escape(x[0]) for x in reader)
-            free_params = [x for x in list(set(features.values())) if re.search(regex, x)]
-
+            free_params = [
+                x for x in list(set(features.values())) 
+                if re.search(regex, x)
+            ]
 
         if not fixed_params:
             fixed_params = []
@@ -346,18 +343,24 @@ class TSL2_Grammar:
             with open(fixed_params) as f:
                 reader = csv.reader(f)
                 regex = '|'.join(re.escape(x[0]) for x in reader)
-            fixed_params = [x for x in list(set(features.values())) if re.search(regex, x)]
+            fixed_params = [
+                x for x in list(set(features.values())) 
+                if re.search(regex, x)
+            ]
 
         free_params = list(set(free_params) - set(fixed_params))
         print("Free params: {}".format(free_params))
         print("Fixed params: {}".format(fixed_params))
 
         # create bounds
-        # instead of limiting bound for fixed value, I removed it completely from the parameter
+        # instead of limiting bound for fixed value, remove it completely
         bounds = [(0, 1) for _ in range(len(free_params))]
 
         if outfile:
-            header = ['name', 'beta', 'itr', 'sse', 'obj', 'item', 'model_score', 'human_score']
+            header = [
+                'name', 'beta', 'itr', 'sse', 'obj', 'item', 'model_score',
+                'human_score'
+            ]
             header.extend(free_params)
 
             with open(outfile, 'w') as f:
@@ -373,11 +376,13 @@ class TSL2_Grammar:
 
                 print("Beginning training")
                 # run the minimize function
-                proj_res = minimize(TSL2_Grammar.evaluate_proj,
-                                    proj_probs,
-                                    bounds=bounds,
-                                    method='L-BFGS-B',
-                                    args=(grammar, free_params, fixed_params, corpus_scores, beta))
+                proj_res = minimize(
+                    TSL2_Grammar.evaluate_proj,
+                    proj_probs,
+                    bounds=bounds,
+                    method='L-BFGS-B',
+                    args=(grammar, free_params, fixed_params, corpus_scores, beta)
+                )
                 print(proj_res)
 
                 if outfile:
@@ -388,7 +393,10 @@ class TSL2_Grammar:
                     rows = []
                     for (item, tree, human_score) in corpus_scores:
                         model_score = grammar.p_grammatical(tree)
-                        rows.append(row_base + [item, model_score, human_score] + list(fitted_probs))
+                        rows.append(
+                            row_base + [item, model_score, human_score] + 
+                            list(fitted_probs)
+                        )
 
                     with open(outfile, 'a') as f:
                         writer = csv.writer(f)
@@ -403,84 +411,66 @@ class TSL2_Grammar:
         '''
         :param tree: Tree to check
         :param proj_dict: Features to project
-        :return: Probability tree is grammatical under this instantiation of grammar
+        :return: Probability tree is grammatical under this 
+                 instantiation of grammar
         '''
         projection_probs = self.projection_p(tree)
-        p_g = sum([prob for proj, prob in projection_probs if prob > 0 and self.is_grammatical(proj)])
+        p_g = sum([
+            prob for proj, prob in projection_probs 
+            if prob > 0 and self.is_grammatical(proj)
+        ])
         return p_g
 
     @staticmethod
     def child_product(child_projections):
         '''
         Returns all possible combinations of child projections
-        :param child_projections: list of tuples List(Tuple(Tree, float)) of children projections and probs
-        :return: List(Tuple(List(Tree), float)) new list of (children, probability) tuples of possible children the
-        parent node has to worry about and their probability
+        :param child_projections: list of tuples List(Tuple(Tree, float)) 
+                                  of children projections and probs
+        :return: List(Tuple(List(Tree), float)) new list of (children, probability) 
+                 tuples of possible children the parent node has to worry about and 
+                 their probability
         '''
         first, *rest = child_projections
+
         # base case, return list
         if not rest:
             return first
+
         projections_products = []
+
         for r_projection in TSL2_Grammar.child_product(rest):
             # for all the other projections in the recursive call
             for f_projection in first:
                 # for all the projections currently being evaluated 'first'
-                # make a new projection/probability pair which is the two lists appended and their probs multiplied
-                projections_products.append((f_projection[0]+r_projection[0], f_projection[1]*r_projection[1]))
-        # remove 0 prob projections to prevent wasteful memory usage
-        return [(projection, prob) for projection, prob in projections_products if prob != 0]
+                # make a new projection/probability pair which is the two 
+                # lists appended and their probs multiplied
+                projections_products.append(
+                    (f_projection[0] + r_projection[0], 
+                     f_projection[1] * r_projection[1])
+                )
 
-def read_corpus_file(corpus_file, features, is_categorical):
+        # remove 0 prob projections to prevent wasteful memory usage
+        return [
+            (projection, prob) 
+            for projection, prob in projections_products 
+            if prob != 0
+        ]
+
+def read_corpus_file(corpus_file, features):
     '''
     :param corpus_file: file of sentence trees and probabilities
     :param features: dictionary of labels: features
-    :is_categorical: boolean flag for categorical runs
     :return: list of tuples contain (tree, judgment score) pairs
     '''
     with open(corpus_file, encoding="utf-8-sig") as c_file:
         corpus_df = pd.read_csv(c_file, encoding="utf-8-sig")
 
-    feature_binary = {
-        "WH.whe.non.sh": 1,
-        "WH.whe.non.lg": 1,
-        "WH.whe.isl.sh": 1,
-        "WH.whe.isl.lg": 0,
-        "RC.sub.non.sh": 1,
-        "RC.sub.non.lg": 1,
-        "RC.sub.isl.sh": 1,
-        "RC.sub.isl.lg": 0,
-        "RC.wh.non.sh": 1,
-        "RC.wh.non.lg": 1,
-        "RC.wh.isl.sh": 1,
-        "RC.wh.isl.lg": 0,
-        "WH.sub.non.sh": 1,
-        "WH.sub.non.lg": 1,
-        "WH.sub.isl.sh": 1,
-        "WH.sub.isl.lg": 0,
-        "WH.np.non.sh": 1,
-        "WH.np.non.lg": 1,
-        "WH.np.isl.sh": 1,
-        "WH.np.isl.lg": 0,
-        "RC.adj.non.sh": 1,
-        "RC.adj.non.lg": 1,
-        "RC.adj.isl.sh": 1,
-        "RC.adj.isl.lg": 0,
-        "WH.adj.non.sh": 1,
-        "WH.adj.non.lg": 1,
-        "WH.adj.isl.lg": 0,
-        "WH.adj.isl.sh": 1,
-        "RC.np.non.sh": 1,
-        "RC.np.non.lg": 1,
-        "RC.np.isl.sh": 1,
-        "RC.np.isl.lg": 0
-    }
-
-    if is_categorical:
-        return [(row['item'], Tree.from_str(row['tree'], features), feature_binary[row['condition']])
-                for _, row in corpus_df.iterrows()]
-
-    return [(row['item'], Tree.from_str(row['tree'], features), row['score']) for _, row in corpus_df.iterrows()]
+    return [
+        (row['item'], Tree.from_str(row['tree'], features), 
+         row['score']) 
+        for _, row in corpus_df.iterrows()
+    ]
 
 def read_feature_file(feature_file, feature_key, entry_key="symbol"):
     '''
@@ -492,12 +482,11 @@ def read_feature_file(feature_file, feature_key, entry_key="symbol"):
     with open(feature_file, encoding="utf-8-sig") as f_file:
         feature_df = pd.read_csv(f_file, encoding="utf-8-sig")
 
-    # features = {row[entry_key]: set(row[feature_key].split(' ')) for _, row in feature_df.iterrows()}
-    features = {row[entry_key]: row[feature_key] for _, row in feature_df.iterrows()}
+    features = {
+        row[entry_key]: row[feature_key] 
+        for _, row in feature_df.iterrows()
+    }
     return features
-
-def write_results_file():
-    pass
 
 def check_wh(tree):
     """
@@ -526,12 +515,16 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "--free_params", type=str, default=None,
-        help="File containing list of featural substrings to choose included features. If this is "
-             "not specified, probabilities will be learned for all symbols."
+        help="A file containing a list of parameters to be fit. One parameter "
+             "on each line. If this is not specified, probabilities will be "
+             "learned for all symbols. Parameters that are not specified here "
+             "will be assigned projection probabilities of 0, unless they "
+             " are included in the fixed_params list below."
     )
     parser.add_argument(
         "--fixed_params", type=str, default=None,
-        help="The parameters that will always project (probability of projection fixed to 1)."
+        help="A file containing a list of parameters that will always project "
+             "(probability of projection fixed to 1)."
     )
     parser.add_argument(
         "--beta", nargs="+", type=float, default=(0,),
@@ -550,39 +543,9 @@ if __name__ == '__main__':
         '--itr', type=int, default=10,
         help='Number of times to re-run optimization'
     )
-    parser.add_argument(
-        '--categorical', action="store_true",
-        help='Number of times to re-run optimization'
-    )
     args = parser.parse_args()
     trained_grammar = TSL2_Grammar.train([check_wh],
-        args.training_file, args.feature_file, args.feature_key, args.free_params, 
-        args.fixed_params, args.beta, args.outfile, args.name, args.itr, args.categorical
+        args.training_file, args.feature_file, args.feature_key, 
+        args.free_params, args.fixed_params, args.beta, 
+        args.outfile, args.name, args.itr
     )
-
-    # features = read_feature_file(args.feature_file, args.feature_key)
-    # corpus_scores = read_corpus_file(args.training_file, features, False)
-    # proj_dict = defaultdict(int)
-    # proj_dict_contents = {
-    #     'whether:: +T -C': 1,
-    #     '-D -wh': 1,
-    #     'that:: +T +wh -C': 1,
-    #     'e:: +T +wh -C': 1,
-    #     'if:: +T -C': 1,
-    #     '+C -N': 1,
-
-    #     'e:: +T -C': 0.25,
-    #     'that:: +T -C': 0.12
-    # }
-    # for key, value in proj_dict_contents.items():
-    #     proj_dict[key] = value
-
-    # grammar = TSL2_Grammar([check_wh], proj_dict)
-    # scores = grammar.score_dataset(corpus_scores)
-
-    # list_to_save = [(item, human_score, model_score, delta) for item, _, human_score, model_score, delta in scores]
-    # df = pd.DataFrame(list_to_save)
-    # df.to_csv(args.outfile, header=False, index=False)
-
-    # python src/tree.py data/training_data.csv data/ptreetsl_lexicon.csv --feature_key features --free_params C wh --beta 1
-    # python src/tree.py data/training_data.csv data/ptreetsl_lexicon_phonetic_split_c.csv --feature_key features --free_params data/free_params_fixed.csv --fixed_params data/fixed_params.csv --outfile results/results_split_c.csv
